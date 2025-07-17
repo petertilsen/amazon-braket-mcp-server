@@ -315,92 +315,302 @@ chart = visualize_results(result=task_results)
 # Returns histogram showing measurement probabilities
 ```
 
-## 📚 Complete Examples
+## 📚 MCP Usage Examples
+
+These examples show how to interact with the Amazon Braket MCP server through natural language prompts and the expected tool calls and results.
 
 ### Example 1: Quantum Entanglement Experiment
-```python
-# Create Bell pair circuit
-bell_circuit = create_bell_pair_circuit()
 
-# Visualize the circuit
-circuit_diagram = visualize_circuit(circuit=bell_circuit)
+**User Prompt:**
+> "Create a Bell pair circuit and run it on a quantum simulator to demonstrate entanglement"
 
-# Run on simulator
-task = run_quantum_task(
-    circuit=bell_circuit,
-    shots=1000
-)
+**MCP Tool Calls & Results:**
 
-# Get and analyze results
-results = get_task_result(task_id=task["task_id"])
-print(f"Measurement counts: {results['counts']}")
-# Expected: {"00": ~500, "11": ~500} - perfect correlation!
+1. **Tool Call:** `create_bell_pair_circuit()`
+   ```json
+   {
+     "circuit_def": {
+       "num_qubits": 2,
+       "gates": [
+         {"name": "h", "qubits": [0]},
+         {"name": "cx", "qubits": [0, 1]},
+         {"name": "measure_all"}
+       ]
+     },
+     "visualization": "iVBORw0KGgoAAAANSUhEUgAA...",
+     "num_qubits": 2,
+     "num_gates": 3
+   }
+   ```
 
-# Visualize results
-results_chart = visualize_results(result=results)
-```
+2. **Tool Call:** `run_quantum_task(circuit=bell_circuit, shots=1000)`
+   ```json
+   {
+     "task_id": "arn:aws:braket:us-east-1:123456789:quantum-task/abc-123",
+     "status": "CREATED",
+     "device_arn": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
+     "shots": 1000
+   }
+   ```
 
-### Example 2: Quantum Algorithm Development
-```python
-# Create custom quantum algorithm
-algorithm_circuit = create_quantum_circuit(
-    num_qubits=4,
-    gates=[
-        # Initialize superposition
-        {"name": "h", "qubits": [0]},
-        {"name": "h", "qubits": [1]},
-        
-        # Apply quantum operations
-        {"name": "cx", "qubits": [0, 2]},
-        {"name": "cx", "qubits": [1, 3]},
-        
-        # Add phase rotation
-        {"name": "rz", "qubits": [2], "params": [0.785]},  # π/4 rotation
-        
-        # Measure all qubits
-        {"name": "measure_all"}
-    ]
-)
+3. **Tool Call:** `get_task_result(task_id="arn:aws:braket:us-east-1:123456789:quantum-task/abc-123")`
+   ```json
+   {
+     "task_id": "arn:aws:braket:us-east-1:123456789:quantum-task/abc-123",
+     "status": "COMPLETED",
+     "counts": {"00": 487, "11": 513},
+     "measurements": [[0,0], [1,1], [0,0], [1,1], ...],
+     "shots": 1000
+   }
+   ```
 
-# Test on different devices
-devices = list_devices()
-for device in devices[:2]:  # Test on first 2 available devices
-    task = run_quantum_task(
-        circuit=algorithm_circuit,
-        device_arn=device["deviceArn"],
-        shots=500
-    )
-    
-    results = get_task_result(task_id=task["task_id"])
-    print(f"Device {device['deviceName']}: {results['counts']}")
-```
+**Expected Response:**
+> "Perfect! The Bell pair circuit demonstrates quantum entanglement beautifully. Out of 1000 measurements, we got 487 |00⟩ states and 513 |11⟩ states - notice we never see |01⟩ or |10⟩! This shows the qubits are perfectly correlated, which is the hallmark of quantum entanglement."
 
-### Example 3: Quantum Fourier Transform Analysis
-```python
-# Create and run QFT
-qft_circuit = create_qft_circuit(num_qubits=3)
+### Example 2: Device Comparison Study
 
-# Run multiple times for statistical analysis
-task_ids = []
-for i in range(5):
-    task = run_quantum_task(
-        circuit=qft_circuit,
-        shots=1000,
-        s3_bucket="my-qft-experiments",
-        s3_prefix=f"run_{i}/"
-    )
-    task_ids.append(task["task_id"])
+**User Prompt:**
+> "What quantum devices are available and show me their capabilities?"
 
-# Analyze all results
-all_results = []
-for task_id in task_ids:
-    result = get_task_result(task_id=task_id)
-    all_results.append(result)
-    
-# Compare measurement distributions
-for i, result in enumerate(all_results):
-    print(f"Run {i+1}: {result['counts']}")
-```
+**MCP Tool Calls & Results:**
+
+1. **Tool Call:** `list_devices()`
+   ```json
+   [
+     {
+       "deviceArn": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
+       "deviceName": "SV1",
+       "deviceType": "SIMULATOR",
+       "deviceStatus": "ONLINE",
+       "providerName": "Amazon Braket"
+     },
+     {
+       "deviceArn": "arn:aws:braket:us-east-1::device/qpu/ionq/Harmony",
+       "deviceName": "Harmony",
+       "deviceType": "QPU",
+       "deviceStatus": "ONLINE",
+       "providerName": "IonQ"
+     }
+   ]
+   ```
+
+2. **Tool Call:** `get_device_info(device_arn="arn:aws:braket:::device/quantum-simulator/amazon/sv1")`
+   ```json
+   {
+     "deviceArn": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
+     "deviceName": "SV1",
+     "deviceType": "SIMULATOR",
+     "deviceCapabilities": {
+       "paradigm": {
+         "qubitCount": 34,
+         "nativeGateSet": ["ccnot", "cnot", "cphaseshift", "cswap", ...]
+       }
+     },
+     "deviceStatus": "ONLINE"
+   }
+   ```
+
+**Expected Response:**
+> "You have access to several quantum devices:
+> 
+> **SV1 Simulator**: Perfect for development with up to 34 qubits, supports all gate operations, always available and free for testing.
+> 
+> **IonQ Harmony**: Real quantum hardware with trapped ion technology, currently online and available for production workloads."
+
+### Example 3: Custom Algorithm Development
+
+**User Prompt:**
+> "Create a 3-qubit quantum circuit that puts the first qubit in superposition, entangles it with the second qubit, and applies a rotation to the third qubit"
+
+**MCP Tool Calls & Results:**
+
+1. **Tool Call:** `create_quantum_circuit(num_qubits=3, gates=[...])`
+   ```json
+   {
+     "circuit_def": {
+       "num_qubits": 3,
+       "gates": [
+         {"name": "h", "qubits": [0]},
+         {"name": "cx", "qubits": [0, 1]},
+         {"name": "ry", "qubits": [2], "params": [1.57]},
+         {"name": "measure_all"}
+       ]
+     },
+     "visualization": "iVBORw0KGgoAAAANSUhEUgAA...",
+     "num_qubits": 3,
+     "num_gates": 4
+   }
+   ```
+
+2. **Tool Call:** `visualize_circuit(circuit=custom_circuit)`
+   ```json
+   {
+     "visualization": "iVBORw0KGgoAAAANSUhEUgAA..."
+   }
+   ```
+
+**Expected Response:**
+> "I've created your custom 3-qubit circuit! Here's what it does:
+> - Qubit 0: Hadamard gate creates superposition (|0⟩ + |1⟩)/√2
+> - Qubit 1: CNOT gate entangles it with qubit 0
+> - Qubit 2: RY rotation gate (π/2 rotation around Y-axis)
+> 
+> The circuit diagram shows the quantum operations in sequence. Would you like to run this on a simulator?"
+
+### Example 4: Task Management and Analysis
+
+**User Prompt:**
+> "Show me my recent quantum computing jobs and their results"
+
+**MCP Tool Calls & Results:**
+
+1. **Tool Call:** `search_quantum_tasks(state="COMPLETED", days_ago=7, max_results=5)`
+   ```json
+   [
+     {
+       "quantumTaskArn": "arn:aws:braket:us-east-1:123456789:quantum-task/task-1",
+       "status": "COMPLETED",
+       "deviceArn": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
+       "createdAt": "2024-01-15T10:30:00Z",
+       "shots": 1000
+     },
+     {
+       "quantumTaskArn": "arn:aws:braket:us-east-1:123456789:quantum-task/task-2",
+       "status": "COMPLETED", 
+       "deviceArn": "arn:aws:braket:us-east-1::device/qpu/ionq/Harmony",
+       "createdAt": "2024-01-14T15:45:00Z",
+       "shots": 100
+     }
+   ]
+   ```
+
+2. **Tool Call:** `get_task_result(task_id="arn:aws:braket:us-east-1:123456789:quantum-task/task-1")`
+   ```json
+   {
+     "status": "COMPLETED",
+     "counts": {"000": 234, "001": 251, "010": 243, "011": 272},
+     "execution_time": "2.3s",
+     "shots": 1000
+   }
+   ```
+
+3. **Tool Call:** `visualize_results(result=task_results)`
+   ```json
+   {
+     "visualization": "iVBORw0KGgoAAAANSUhEUgAA..."
+   }
+   ```
+
+**Expected Response:**
+> "Here are your recent quantum computing jobs:
+> 
+> **Task 1** (SV1 Simulator - Jan 15):
+> - 1000 shots completed in 2.3 seconds
+> - Results show fairly uniform distribution across all 3-qubit states
+> - Histogram visualization shows the measurement probabilities
+> 
+> **Task 2** (IonQ Harmony - Jan 14):
+> - Real quantum hardware execution with 100 shots
+> - Results will show quantum noise and decoherence effects typical of NISQ devices"
+
+### Example 5: Quantum Algorithm Learning
+
+**User Prompt:**
+> "I want to learn about quantum algorithms. Create a Quantum Fourier Transform and explain what it does"
+
+**MCP Tool Calls & Results:**
+
+1. **Tool Call:** `create_qft_circuit(num_qubits=3)`
+   ```json
+   {
+     "circuit_def": {
+       "num_qubits": 3,
+       "gates": [
+         {"name": "h", "qubits": [0]},
+         {"name": "cp", "qubits": [1, 0], "params": [1.5708]},
+         {"name": "cp", "qubits": [2, 0], "params": [0.7854]},
+         {"name": "h", "qubits": [1]},
+         {"name": "cp", "qubits": [2, 1], "params": [1.5708]},
+         {"name": "h", "qubits": [2]},
+         {"name": "swap", "qubits": [0, 2]},
+         {"name": "measure_all"}
+       ]
+     },
+     "visualization": "iVBORw0KGgoAAAANSUhEUgAA...",
+     "num_qubits": 3,
+     "num_gates": 8
+   }
+   ```
+
+2. **Tool Call:** `run_quantum_task(circuit=qft_circuit, shots=1000)`
+   ```json
+   {
+     "task_id": "arn:aws:braket:us-east-1:123456789:quantum-task/qft-demo",
+     "status": "CREATED"
+   }
+   ```
+
+**Expected Response:**
+> "Great choice for learning! The Quantum Fourier Transform (QFT) is fundamental to many quantum algorithms. Here's what this 3-qubit QFT does:
+> 
+> **Circuit Structure:**
+> - Hadamard gates create superposition
+> - Controlled phase gates add quantum interference
+> - SWAP gates reorder the qubits
+> 
+> **Applications:**
+> - **Shor's Algorithm**: For factoring large numbers
+> - **Phase Estimation**: Finding eigenvalues of quantum operators
+> - **Period Finding**: Detecting periodic patterns in data
+> 
+> The QFT transforms computational basis states into frequency domain representations, similar to classical Fourier transforms but leveraging quantum parallelism. When we run this, you'll see how quantum interference creates specific measurement patterns!"
+
+### Example 6: Error Handling and Troubleshooting
+
+**User Prompt:**
+> "My quantum task seems to be stuck. Can you help me check its status and cancel it if needed?"
+
+**MCP Tool Calls & Results:**
+
+1. **Tool Call:** `search_quantum_tasks(state="RUNNING", max_results=10)`
+   ```json
+   [
+     {
+       "quantumTaskArn": "arn:aws:braket:us-east-1:123456789:quantum-task/stuck-task",
+       "status": "RUNNING",
+       "createdAt": "2024-01-15T08:00:00Z",
+       "deviceArn": "arn:aws:braket:us-east-1::device/qpu/ionq/Harmony"
+     }
+   ]
+   ```
+
+2. **Tool Call:** `cancel_quantum_task(task_id="arn:aws:braket:us-east-1:123456789:quantum-task/stuck-task")`
+   ```json
+   {
+     "status": "CANCELLED",
+     "message": "Quantum task successfully cancelled"
+   }
+   ```
+
+**Expected Response:**
+> "I found your stuck task! It's been running since 8:00 AM on the IonQ Harmony device. I've successfully cancelled it for you. 
+> 
+> **Troubleshooting Tips:**
+> - Real quantum hardware can have queues and longer execution times
+> - Consider using simulators for development and testing
+> - Monitor task status regularly for long-running jobs
+> - Set appropriate timeouts for production workflows"
+
+## 🎯 MCP Integration Benefits
+
+These examples demonstrate how the MCP server enables:
+
+- **Natural Language Interface**: Ask questions in plain English
+- **Contextual Responses**: Get explanations tailored to your quantum computing level
+- **Automatic Tool Orchestration**: Multiple tools work together seamlessly
+- **Educational Guidance**: Learn quantum concepts through hands-on examples
+- **Error Recovery**: Built-in troubleshooting and task management
+- **Visual Feedback**: Circuit diagrams and result visualizations included
 
 ## 🎓 Learning Quantum Computing
 
