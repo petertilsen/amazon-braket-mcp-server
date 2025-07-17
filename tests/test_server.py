@@ -9,7 +9,7 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 
-"""Tests for the Amazon Braket MCP Server."""
+"""Comprehensive tests for the Amazon Braket MCP Server."""
 
 import pytest
 from unittest.mock import patch, MagicMock
@@ -18,6 +18,18 @@ from awslabs.amazon_braket_mcp_server.server import (
     create_quantum_circuit,
     create_bell_pair_circuit,
     list_devices,
+    run_quantum_task,
+    get_task_result,
+    get_device_info,
+    cancel_quantum_task,
+    search_quantum_tasks,
+    create_ghz_circuit,
+    create_qft_circuit,
+    visualize_circuit,
+    visualize_results,
+)
+from awslabs.amazon_braket_mcp_server.models import (
+    QuantumCircuit, Gate, TaskResult, TaskStatus, DeviceInfo, DeviceType
 )
 
 
@@ -75,8 +87,8 @@ def test_list_devices(mock_braket_service):
     """Test listing devices."""
     # Mock the list_devices method
     mock_braket_service.list_devices.return_value = [
-        MagicMock(dict=lambda: {"device_arn": "arn1", "device_name": "Device 1"}),
-        MagicMock(dict=lambda: {"device_arn": "arn2", "device_name": "Device 2"}),
+        MagicMock(model_dump=lambda: {"device_arn": "arn1", "device_name": "Device 1"}),
+        MagicMock(model_dump=lambda: {"device_arn": "arn2", "device_name": "Device 2"}),
     ]
     
     # Call the function
@@ -87,3 +99,393 @@ def test_list_devices(mock_braket_service):
     assert result[0]["device_arn"] == "arn1"
     assert result[1]["device_name"] == "Device 2"
     assert mock_braket_service.list_devices.called
+
+class TestQuantumTaskExecution:
+    """Test quantum task execution endpoints."""
+    
+    def test_run_quantum_task_success(self, mock_braket_service):
+        """Test successful quantum task execution."""
+        mock_braket_service.run_quantum_task.return_value = 'task-123'
+        
+        circuit = {
+            'num_qubits': 2,
+            'gates': [
+                {'name': 'h', 'qubits': [0]},
+                {'name': 'cx', 'qubits': [0, 1]},
+                {'name': 'measure_all'}
+            ]
+        }
+        
+        result = run_quantum_task(
+            circuit=circuit,
+            device_arn='arn:aws:braket:::device/quantum-simulator/amazon/sv1',
+            shots=1000
+        )
+        
+        assert result['task_id'] == 'task-123'
+        assert result['status'] == 'CREATED'
+        assert result['device_arn'] == 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
+        assert result['shots'] == 1000
+        
+        mock_braket_service.run_quantum_task.assert_called_once()
+    
+    def test_run_quantum_task_with_s3_config(self, mock_braket_service):
+        """Test quantum task execution with S3 configuration."""
+        mock_braket_service.run_quantum_task.return_value = 'task-456'
+        
+        circuit = {
+            'num_qubits': 1,
+            'gates': [{'name': 'x', 'qubits': [0]}]
+        }
+        
+        result = run_quantum_task(
+            circuit=circuit,
+            device_arn='arn:aws:braket:::device/quantum-simulator/amazon/sv1',
+            shots=500,
+            s3_bucket='my-bucket',
+            s3_prefix='results/'
+        )
+        
+        assert result['task_id'] == 'task-456'
+        assert result['shots'] == 500
+        
+        # Verify S3 parameters were passed
+        call_args = mock_braket_service.run_quantum_task.call_args
+        assert call_args[1]['s3_bucket'] == 'my-bucket'
+        assert call_args[1]['s3_prefix'] == 'results/'
+    
+    def test_run_quantum_task_error(self, mock_braket_service):
+        """Test quantum task execution error handling."""
+        mock_braket_service.run_quantum_task.side_effect = Exception("Device unavailable")
+        
+        circuit = {'num_qubits': 1, 'gates': []}
+        
+        result = run_quantum_task(
+            circuit=circuit,
+            device_arn='arn:aws:braket:::device/quantum-simulator/amazon/sv1'
+        )
+        
+        assert 'error' in result
+        assert 'Device unavailable' in result['error']
+
+
+class TestTaskResultRetrieval:
+    """Test task result retrieval endpoints."""
+    
+    def test_get_task_result_success(self, mock_braket_service):
+        """Test successful task result retrieval."""
+        mock_result = TaskResult(
+            task_id='task-123',
+            status=TaskStatus.COMPLETED,
+            measurements=[[0, 1], [1, 0]],
+            counts={'01': 500, '10': 500},
+            device='arn:aws:braket:::device/quantum-simulator/amazon/sv1',
+            shots=1000,
+            execution_time=5.5,
+            metadata={'custom': 'data'}
+        )
+        mock_braket_service.get_task_result.return_value = mock_result
+        
+        result = get_task_result('task-123')
+        
+        assert result['task_id'] == 'task-123'
+        assert result['status'] == TaskStatus.COMPLETED
+        assert result['measurements'] == [[0, 1], [1, 0]]
+        assert result['counts'] == {'01': 500, '10': 500}
+        assert result['execution_time'] == 5.5
+    
+    def test_get_task_result_error(self, mock_braket_service):
+        """Test task result retrieval error handling."""
+        mock_braket_service.get_task_result.side_effect = Exception("Task not found")
+        
+        result = get_task_result('invalid-task')
+        
+        assert 'error' in result
+        assert 'Task not found' in result['error']
+
+
+class TestDeviceManagement:
+    """Test device management endpoints."""
+    
+    def test_get_device_info_success(self, mock_braket_service):
+        """Test successful device info retrieval."""
+        mock_device = DeviceInfo(
+            device_arn='arn:aws:braket:::device/quantum-simulator/amazon/sv1',
+            device_name='SV1',
+            device_type=DeviceType.SIMULATOR,
+            provider_name='Amazon',
+            status='ONLINE',
+            qubits=34,
+            connectivity='full',
+            paradigm='gate-based',
+            max_shots=100000,
+            supported_gates=['h', 'x', 'y', 'z', 'cx']
+        )
+        mock_braket_service.get_device_info.return_value = mock_device
+        
+        result = get_device_info('arn:aws:braket:::device/quantum-simulator/amazon/sv1')
+        
+        assert result['device_arn'] == 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
+        assert result['device_name'] == 'SV1'
+        assert result['device_type'] == DeviceType.SIMULATOR
+        assert result['qubits'] == 34
+        assert result['max_shots'] == 100000
+    
+    def test_get_device_info_error(self, mock_braket_service):
+        """Test device info retrieval error handling."""
+        mock_braket_service.get_device_info.side_effect = Exception("Device not found")
+        
+        result = get_device_info('invalid-arn')
+        
+        assert 'error' in result
+        assert 'Device not found' in result['error']
+
+
+class TestTaskManagement:
+    """Test task management endpoints."""
+    
+    def test_cancel_quantum_task_success(self, mock_braket_service):
+        """Test successful task cancellation."""
+        mock_braket_service.cancel_quantum_task.return_value = True
+        
+        result = cancel_quantum_task('task-123')
+        
+        assert result['cancelled'] is True
+        assert result['task_id'] == 'task-123'
+        mock_braket_service.cancel_quantum_task.assert_called_once_with('task-123')
+    
+    def test_cancel_quantum_task_failure(self, mock_braket_service):
+        """Test task cancellation failure."""
+        mock_braket_service.cancel_quantum_task.return_value = False
+        
+        result = cancel_quantum_task('task-123')
+        
+        assert result['cancelled'] is False
+        assert result['task_id'] == 'task-123'
+    
+    def test_cancel_quantum_task_error(self, mock_braket_service):
+        """Test task cancellation error handling."""
+        mock_braket_service.cancel_quantum_task.side_effect = Exception("Cannot cancel")
+        
+        result = cancel_quantum_task('task-123')
+        
+        assert 'error' in result
+        assert 'Cannot cancel' in result['error']
+    
+    def test_search_quantum_tasks_success(self, mock_braket_service):
+        """Test successful task search."""
+        mock_tasks = [
+            {
+                'quantumTaskArn': 'task-123',
+                'status': 'COMPLETED',
+                'deviceArn': 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
+            },
+            {
+                'quantumTaskArn': 'task-456',
+                'status': 'RUNNING',
+                'deviceArn': 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
+            }
+        ]
+        mock_braket_service.search_quantum_tasks.return_value = mock_tasks
+        
+        result = search_quantum_tasks(
+            device_arn='arn:aws:braket:::device/quantum-simulator/amazon/sv1',
+            state='COMPLETED',
+            max_results=10
+        )
+        
+        assert result == mock_tasks
+        
+        mock_braket_service.search_quantum_tasks.assert_called_once_with(
+            device_arn='arn:aws:braket:::device/quantum-simulator/amazon/sv1',
+            state='COMPLETED',
+            max_results=10,
+            created_after=None
+        )
+    
+    def test_search_quantum_tasks_error(self, mock_braket_service):
+        """Test task search error handling."""
+        mock_braket_service.search_quantum_tasks.side_effect = Exception("Search failed")
+        
+        result = search_quantum_tasks()
+        
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert 'error' in result[0]
+        assert 'Search failed' in result[0]['error']
+
+
+class TestCircuitCreation:
+    """Test circuit creation endpoints."""
+    
+    def test_create_ghz_circuit_success(self, mock_braket_service):
+        """Test successful GHZ circuit creation."""
+        mock_braket_service.create_qiskit_circuit.return_value = MagicMock()
+        mock_braket_service.visualize_circuit.return_value = 'base64_image'
+        
+        result = create_ghz_circuit(num_qubits=3)
+        
+        assert result['num_qubits'] == 3
+        assert result['num_gates'] == 4  # H + 2 CNOT + measure_all
+        assert result['visualization'] == 'base64_image'
+        assert 'circuit_def' in result
+        
+        # The server creates the circuit directly, not via create_qiskit_circuit
+        mock_braket_service.visualize_circuit.assert_called_once()
+    
+    def test_create_ghz_circuit_error(self, mock_braket_service):
+        """Test GHZ circuit creation error handling."""
+        mock_braket_service.visualize_circuit.side_effect = Exception("Circuit error")
+        
+        result = create_ghz_circuit(num_qubits=2)
+        
+        assert 'error' in result
+        assert 'Circuit error' in result['error']
+    
+    def test_create_qft_circuit_success(self, mock_braket_service):
+        """Test successful QFT circuit creation."""
+        mock_braket_service.create_qiskit_circuit.return_value = MagicMock()
+        mock_braket_service.visualize_circuit.return_value = 'base64_image'
+        
+        result = create_qft_circuit(num_qubits=4)
+        
+        assert result['num_qubits'] == 4
+        assert result['description'] == 'Quantum Fourier Transform'
+        assert result['visualization'] == 'base64_image'
+        assert 'circuit_def' in result
+        
+        # The server creates the circuit directly, not via create_qiskit_circuit
+        mock_braket_service.visualize_circuit.assert_called_once()
+    
+    def test_create_qft_circuit_error(self, mock_braket_service):
+        """Test QFT circuit creation error handling."""
+        mock_braket_service.visualize_circuit.side_effect = Exception("Visualization error")
+        
+        result = create_qft_circuit(num_qubits=3)
+        
+        assert 'error' in result
+        assert 'Visualization error' in result['error']
+
+
+class TestVisualization:
+    """Test visualization endpoints."""
+    
+    def test_visualize_circuit_success(self, mock_braket_service):
+        """Test successful circuit visualization."""
+        mock_braket_service.visualize_circuit.return_value = 'base64_encoded_image'
+        
+        circuit = {
+            'num_qubits': 2,
+            'gates': [
+                {'name': 'h', 'qubits': [0]},
+                {'name': 'cx', 'qubits': [0, 1]}
+            ]
+        }
+        
+        result = visualize_circuit(circuit)
+        
+        assert result['visualization'] == 'base64_encoded_image'
+        
+        # The server creates a QuantumCircuit object and then visualizes it
+        mock_braket_service.visualize_circuit.assert_called_once()
+    
+    def test_visualize_circuit_error(self, mock_braket_service):
+        """Test circuit visualization error handling."""
+        mock_braket_service.visualize_circuit.side_effect = Exception("Invalid circuit")
+        
+        circuit = {'num_qubits': 2, 'gates': [{'name': 'h', 'qubits': [0]}]}
+        
+        result = visualize_circuit(circuit)
+        
+        assert 'error' in result
+        assert 'Invalid circuit' in result['error']
+    
+    def test_visualize_results_success(self, mock_braket_service):
+        """Test successful results visualization."""
+        mock_braket_service.visualize_results.return_value = 'base64_plot_image'
+        
+        results = {
+            'task_id': 'test-task',
+            'status': 'COMPLETED',
+            'device': 'test-device',
+            'shots': 1000,
+            'counts': {'00': 250, '01': 250, '10': 250, '11': 250},
+            'measurements': [[0, 0], [0, 1], [1, 0], [1, 1]]
+        }
+        
+        result = visualize_results(results)
+        
+        assert result['visualization'] == 'base64_plot_image'
+        
+        mock_braket_service.visualize_results.assert_called_once()
+    
+    def test_visualize_results_error(self, mock_braket_service):
+        """Test results visualization error handling."""
+        mock_braket_service.visualize_results.side_effect = Exception("Plot error")
+        
+        results = {
+            'task_id': 'test-task',
+            'status': 'COMPLETED', 
+            'device': 'test-device',
+            'shots': 1000,
+            'counts': {'00': 500, '11': 500}
+        }
+        
+        result = visualize_results(results)
+        
+        assert 'error' in result
+        assert 'Plot error' in result['error']
+
+
+class TestEdgeCases:
+    """Test edge cases and boundary conditions."""
+    
+    def test_run_quantum_task_minimal_circuit(self, mock_braket_service):
+        """Test running task with minimal circuit."""
+        mock_braket_service.run_quantum_task.return_value = 'task-minimal'
+        
+        circuit = {'num_qubits': 1, 'gates': []}
+        
+        result = run_quantum_task(
+            circuit=circuit,
+            device_arn='arn:aws:braket:::device/quantum-simulator/amazon/sv1'
+        )
+        
+        assert result['task_id'] == 'task-minimal'
+        assert result['shots'] == 1000  # default value
+    
+    def test_search_quantum_tasks_no_filters(self, mock_braket_service):
+        """Test task search without filters."""
+        mock_braket_service.search_quantum_tasks.return_value = []
+        
+        result = search_quantum_tasks()
+        
+        assert result == []
+        
+        # Verify called with default parameters
+        mock_braket_service.search_quantum_tasks.assert_called_once_with(
+            device_arn=None,
+            state=None,
+            max_results=10,
+            created_after=None
+        )
+    
+    def test_create_ghz_circuit_single_qubit(self, mock_braket_service):
+        """Test GHZ circuit creation with single qubit."""
+        mock_braket_service.create_qiskit_circuit.return_value = MagicMock()
+        mock_braket_service.visualize_circuit.return_value = 'single_qubit_image'
+        
+        result = create_ghz_circuit(num_qubits=1)
+        
+        assert result['num_qubits'] == 1
+        assert result['num_gates'] == 2  # H + measure_all
+        
+    def test_create_qft_circuit_single_qubit(self, mock_braket_service):
+        """Test QFT circuit creation with single qubit."""
+        mock_braket_service.create_qiskit_circuit.return_value = MagicMock()
+        mock_braket_service.visualize_circuit.return_value = 'qft_single_image'
+        
+        result = create_qft_circuit(num_qubits=1)
+        
+        assert result['num_qubits'] == 1
+        assert result['description'] == 'Quantum Fourier Transform'

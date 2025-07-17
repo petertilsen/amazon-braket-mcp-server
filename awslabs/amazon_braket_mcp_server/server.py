@@ -103,7 +103,7 @@ def create_quantum_circuit(num_qubits: int, gates: List[Dict[str, Any]]) -> Dict
         circuit_image = get_braket_service().visualize_circuit(qiskit_circuit)
         
         return {
-            'circuit_def': circuit_def.dict(),
+            'circuit_def': circuit_def.model_dump(),
             'visualization': circuit_image,
             'num_qubits': num_qubits,
             'num_gates': len(gate_objects),
@@ -185,7 +185,7 @@ def get_task_result(task_id: str) -> Dict[str, Any]:
         result = get_braket_service().get_task_result(task_id)
         
         # Return the result as a dictionary
-        return result.dict()
+        return result.model_dump()
     except Exception as e:
         logger.exception(f"Error getting task result: {str(e)}")
         return {'error': str(e)}
@@ -203,7 +203,7 @@ def list_devices() -> List[Dict[str, Any]]:
         devices = get_braket_service().list_devices()
         
         # Convert to dictionaries
-        return [device.dict() for device in devices]
+        return [device.model_dump() for device in devices]
     except Exception as e:
         logger.exception(f"Error listing devices: {str(e)}")
         return [{'error': str(e)}]
@@ -224,7 +224,7 @@ def get_device_info(device_arn: str) -> Dict[str, Any]:
         device_info = get_braket_service().get_device_info(device_arn)
         
         # Return the device info as a dictionary
-        return device_info.dict()
+        return device_info.model_dump()
     except Exception as e:
         logger.exception(f"Error getting device info: {str(e)}")
         return {'error': str(e)}
@@ -316,7 +316,7 @@ def create_bell_pair_circuit() -> Dict[str, Any]:
         )
         
         return {
-            'circuit_def': circuit_def.dict(),
+            'circuit_def': circuit_def.model_dump(),
             'visualization': circuit_image,
             'num_qubits': 2,
             'num_gates': 3,
@@ -355,7 +355,7 @@ def create_ghz_circuit(num_qubits: int = 3) -> Dict[str, Any]:
         )
         
         return {
-            'circuit_def': circuit_def.dict(),
+            'circuit_def': circuit_def.model_dump(),
             'visualization': circuit_image,
             'num_qubits': num_qubits,
             'num_gates': len(gates),
@@ -390,7 +390,7 @@ def create_qft_circuit(num_qubits: int = 3) -> Dict[str, Any]:
         )
         
         return {
-            'circuit_def': circuit_def.dict(),
+            'circuit_def': circuit_def.model_dump(),
             'visualization': circuit_image,
             'num_qubits': num_qubits,
             'description': 'Quantum Fourier Transform',
