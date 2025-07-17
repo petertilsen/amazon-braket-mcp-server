@@ -10,11 +10,12 @@ dependencies = [
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
     "amazon-braket-sdk>=1.50.0",
-    "qiskit>=0.45.1,<2.0.0",  # Allow newer versions while avoiding breaking changes
+    "qiskit>=0.45.1,<2.0.0", # Allow newer versions while avoiding breaking changes
     "qiskit-braket-provider>=0.0.3",
     "qiskit-ionq>=0.4.6",
-    "matplotlib>=3.5.0",  # Required for circuit visualization
-    "numpy>=1.21.0",  # Required for quantum operations
+    "matplotlib>=3.5.0", # Required for circuit visualization
+    "numpy>=1.21.0", # Required for quantum operations
+    "pylatexenc>=2.10", # Required for quantum circuit visualization with matplotlib
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]

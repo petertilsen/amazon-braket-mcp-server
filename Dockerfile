@@ -34,7 +34,7 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     pip install uv && \
     # Force install specific versions of qiskit packages to ensure compatibility
-    pip install "qiskit>=0.45.1,<2.0.0" "qiskit-braket-provider>=0.0.3" "qiskit-ionq>=0.4.6" matplotlib numpy && \
+    pip install "qiskit>=0.45.1,<2.0.0" "qiskit-braket-provider>=0.0.3" "qiskit-ionq>=0.4.6" matplotlib numpy "pylatexenc>=2.10" && \
     uv sync --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it

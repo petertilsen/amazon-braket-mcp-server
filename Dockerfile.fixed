@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir "qiskit>=0.45.1,<2.0.0" && \
     pip install --no-cache-dir "qiskit-braket-provider>=0.0.3" && \
     pip install --no-cache-dir "qiskit-ionq>=0.4.6" && \
+    pip install --no-cache-dir "pylatexenc>=2.10" && \
     pip install --no-cache-dir matplotlib numpy && \
     pip install --no-cache-dir -e .
 

@@ -362,7 +362,7 @@ class BraketService:
         """
         try:
             # Get the list of devices
-            response = self.braket_client.search_devices()
+            response = self.braket_client.search_devices(filters=[])
             
             # Convert to DeviceInfo objects
             devices = []
