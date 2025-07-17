@@ -62,6 +62,15 @@ def get_braket_service():
     return _braket_service
 
 
+# Add default device ARN support
+def get_default_device_arn():
+    """Get the default device ARN from environment or use SV1 simulator."""
+    arn = os.environ.get('BRAKET_DEFAULT_DEVICE_ARN', '').strip()
+    if not arn:  # Handle empty string or None
+        return 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
+    return arn
+
+
 @mcp.resource(uri='amazon-braket://devices', name='QuantumDevices', mime_type='application/json')
 def get_devices_resource() -> List[DeviceInfo]:
     """Get the list of available quantum devices."""
@@ -116,7 +125,7 @@ def create_quantum_circuit(num_qubits: int, gates: List[Dict[str, Any]]) -> Dict
 @mcp.tool(name='run_quantum_task')
 def run_quantum_task(
     circuit: Dict[str, Any],
-    device_arn: str,
+    device_arn: Optional[str] = None,
     shots: int = 1000,
     s3_bucket: Optional[str] = None,
     s3_prefix: Optional[str] = None,
@@ -125,7 +134,7 @@ def run_quantum_task(
     
     Args:
         circuit: Quantum circuit definition
-        device_arn: ARN of the device to run the task on
+        device_arn: ARN of the device to run the task on (optional, uses default if not provided)
         shots: Number of shots to run
         s3_bucket: S3 bucket for storing results (optional)
         s3_prefix: S3 prefix for storing results (optional)
@@ -134,6 +143,11 @@ def run_quantum_task(
         Dictionary containing the task ID and status
     """
     try:
+        # Use default device ARN if none provided
+        if device_arn is None:
+            device_arn = get_default_device_arn()
+            logger.info(f"Using default device ARN: {device_arn}")
+        
         # Convert the circuit dictionary to a QuantumCircuit object
         gate_objects = []
         for gate_dict in circuit.get('gates', []):

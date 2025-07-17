@@ -11,6 +11,7 @@
 
 """Comprehensive tests for the Amazon Braket MCP Server."""
 
+import os
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -27,6 +28,7 @@ from awslabs.amazon_braket_mcp_server.server import (
     create_qft_circuit,
     visualize_circuit,
     visualize_results,
+    get_default_device_arn,
 )
 from awslabs.amazon_braket_mcp_server.models import (
     QuantumCircuit, Gate, TaskResult, TaskStatus, DeviceInfo, DeviceType
@@ -489,3 +491,188 @@ class TestEdgeCases:
         
         assert result['num_qubits'] == 1
         assert result['description'] == 'Quantum Fourier Transform'
+
+
+# ============================================================================
+# DEFAULT DEVICE ARN TESTS
+# ============================================================================
+
+class TestDefaultDeviceArn:
+    """Test default device ARN functionality."""
+    
+    def test_get_default_device_arn_with_env_var(self):
+        """Test getting default device ARN from environment variable."""
+        test_arn = "arn:aws:braket:::device/quantum-simulator/amazon/tn1"
+        
+        with patch.dict(os.environ, {'BRAKET_DEFAULT_DEVICE_ARN': test_arn}):
+            result = get_default_device_arn()
+            assert result == test_arn
+    
+    def test_get_default_device_arn_without_env_var(self):
+        """Test getting default device ARN when environment variable is not set."""
+        with patch.dict(os.environ, {}, clear=True):
+            result = get_default_device_arn()
+            assert result == 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
+    
+    def test_get_default_device_arn_empty_env_var(self):
+        """Test getting default device ARN when environment variable is empty."""
+        with patch.dict(os.environ, {'BRAKET_DEFAULT_DEVICE_ARN': ''}):
+            result = get_default_device_arn()
+            assert result == 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
+
+
+class TestRunQuantumTaskWithDefaultDevice:
+    """Test run_quantum_task with default device ARN functionality."""
+    
+    @patch('awslabs.amazon_braket_mcp_server.server.get_braket_service')
+    def test_run_quantum_task_with_explicit_device_arn(self, mock_get_service):
+        """Test run_quantum_task with explicitly provided device ARN."""
+        mock_service = MagicMock()
+        mock_service.run_quantum_task.return_value = 'task-123'
+        mock_get_service.return_value = mock_service
+        
+        circuit = {
+            'num_qubits': 2,
+            'gates': [
+                {'name': 'h', 'qubits': [0]},
+                {'name': 'cx', 'qubits': [0, 1]},
+                {'name': 'measure_all'}
+            ]
+        }
+        
+        explicit_arn = "arn:aws:braket:::device/quantum-simulator/amazon/tn1"
+        
+        result = run_quantum_task(
+            circuit=circuit,
+            device_arn=explicit_arn,
+            shots=1000
+        )
+        
+        assert result['task_id'] == 'task-123'
+        assert result['device_arn'] == explicit_arn
+        
+        # Verify the service was called with the explicit ARN
+        mock_service.run_quantum_task.assert_called_once()
+        call_args = mock_service.run_quantum_task.call_args
+        assert call_args[1]['device_arn'] == explicit_arn
+    
+    @patch('awslabs.amazon_braket_mcp_server.server.get_braket_service')
+    @patch('awslabs.amazon_braket_mcp_server.server.get_default_device_arn')
+    def test_run_quantum_task_with_default_device_arn(self, mock_get_default_arn, mock_get_service):
+        """Test run_quantum_task using default device ARN when none provided."""
+        mock_service = MagicMock()
+        mock_service.run_quantum_task.return_value = 'task-456'
+        mock_get_service.return_value = mock_service
+        
+        default_arn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+        mock_get_default_arn.return_value = default_arn
+        
+        circuit = {
+            'num_qubits': 1,
+            'gates': [{'name': 'h', 'qubits': [0]}]
+        }
+        
+        # Call without device_arn parameter
+        result = run_quantum_task(
+            circuit=circuit,
+            shots=500
+        )
+        
+        assert result['task_id'] == 'task-456'
+        assert result['device_arn'] == default_arn
+        
+        # Verify the default ARN function was called
+        mock_get_default_arn.assert_called_once()
+        
+        # Verify the service was called with the default ARN
+        mock_service.run_quantum_task.assert_called_once()
+        call_args = mock_service.run_quantum_task.call_args
+        assert call_args[1]['device_arn'] == default_arn
+    
+    @patch('awslabs.amazon_braket_mcp_server.server.get_braket_service')
+    def test_run_quantum_task_with_none_device_arn(self, mock_get_service):
+        """Test run_quantum_task when device_arn is explicitly set to None."""
+        mock_service = MagicMock()
+        mock_service.run_quantum_task.return_value = 'task-789'
+        mock_get_service.return_value = mock_service
+        
+        circuit = {
+            'num_qubits': 1,
+            'gates': [{'name': 'x', 'qubits': [0]}]
+        }
+        
+        with patch.dict(os.environ, {'BRAKET_DEFAULT_DEVICE_ARN': 'arn:aws:braket:::device/quantum-simulator/amazon/dm1'}):
+            result = run_quantum_task(
+                circuit=circuit,
+                device_arn=None,  # Explicitly None
+                shots=100
+            )
+            
+            assert result['task_id'] == 'task-789'
+            assert result['device_arn'] == 'arn:aws:braket:::device/quantum-simulator/amazon/dm1'
+            
+            # Verify the service was called with the environment variable ARN
+            mock_service.run_quantum_task.assert_called_once()
+            call_args = mock_service.run_quantum_task.call_args
+            assert call_args[1]['device_arn'] == 'arn:aws:braket:::device/quantum-simulator/amazon/dm1'
+
+
+class TestDefaultDeviceArnIntegration:
+    """Test default device ARN integration with different scenarios."""
+    
+    @patch('awslabs.amazon_braket_mcp_server.server.get_braket_service')
+    def test_multiple_tasks_with_mixed_device_specification(self, mock_get_service):
+        """Test multiple tasks with mixed device ARN specification."""
+        mock_service = MagicMock()
+        mock_service.run_quantum_task.side_effect = ['task-1', 'task-2', 'task-3']
+        mock_get_service.return_value = mock_service
+        
+        circuit = {'num_qubits': 1, 'gates': [{'name': 'h', 'qubits': [0]}]}
+        
+        custom_arn = "arn:aws:braket:::device/quantum-simulator/amazon/tn1"
+        default_arn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+        
+        with patch.dict(os.environ, {'BRAKET_DEFAULT_DEVICE_ARN': default_arn}):
+            # Task 1: Explicit device ARN
+            result1 = run_quantum_task(circuit=circuit, device_arn=custom_arn)
+            
+            # Task 2: No device ARN (should use default)
+            result2 = run_quantum_task(circuit=circuit)
+            
+            # Task 3: Explicit None (should use default)
+            result3 = run_quantum_task(circuit=circuit, device_arn=None)
+            
+            # Verify results
+            assert result1['device_arn'] == custom_arn
+            assert result2['device_arn'] == default_arn
+            assert result3['device_arn'] == default_arn
+            
+            # Verify service calls
+            assert mock_service.run_quantum_task.call_count == 3
+            
+            # Check each call's device ARN
+            calls = mock_service.run_quantum_task.call_args_list
+            assert calls[0][1]['device_arn'] == custom_arn
+            assert calls[1][1]['device_arn'] == default_arn
+            assert calls[2][1]['device_arn'] == default_arn
+    
+    def test_environment_variable_precedence(self):
+        """Test that environment variable takes precedence over hardcoded default."""
+        env_arn = "arn:aws:braket:::device/quantum-simulator/amazon/dm1"
+        
+        # Test with environment variable set
+        with patch.dict(os.environ, {'BRAKET_DEFAULT_DEVICE_ARN': env_arn}):
+            result = get_default_device_arn()
+            assert result == env_arn
+        
+        # Test without environment variable (should use hardcoded default)
+        with patch.dict(os.environ, {}, clear=True):
+            result = get_default_device_arn()
+            assert result == 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
+    
+    def test_empty_string_environment_variable(self):
+        """Test behavior when environment variable is set to empty string."""
+        with patch.dict(os.environ, {'BRAKET_DEFAULT_DEVICE_ARN': ''}):
+            result = get_default_device_arn()
+            # Empty string should fall back to hardcoded default
+            assert result == 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
