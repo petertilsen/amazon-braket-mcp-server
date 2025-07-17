@@ -1,0 +1,43 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    lsof \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd --force --system app && \
+    useradd app -g app -d /app && \
+    chmod o+x /root
+
+# Copy project files
+COPY . /app/
+
+# Create and activate virtual environment
+RUN python -m venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Install specific versions of packages to ensure compatibility
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir "qiskit>=0.45.1,<2.0.0" && \
+    pip install --no-cache-dir "qiskit-braket-provider>=0.0.3" && \
+    pip install --no-cache-dir "qiskit-ionq>=0.4.6" && \
+    pip install --no-cache-dir matplotlib numpy && \
+    pip install --no-cache-dir -e .
+
+# Copy healthcheck script
+COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
+RUN chmod +x /usr/local/bin/docker-healthcheck.sh
+
+# Run as non-root
+USER app
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
+
+# Entrypoint
+ENTRYPOINT ["awslabs.amazon-braket-mcp-server"]
