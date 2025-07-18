@@ -44,6 +44,26 @@ class TestEndToEndWorkflows:
     
     def test_complete_quantum_circuit_workflow(self, mock_braket_service):
         """Test complete workflow: create circuit -> run task -> get results."""
+        # Mock circuit creation response
+        mock_circuit_def = {
+            'num_qubits': 2,
+            'gates': [
+                {'name': 'h', 'qubits': [0]},
+                {'name': 'cx', 'qubits': [0, 1]},
+                {'name': 'measure_all'}
+            ],
+            'metadata': None
+        }
+        
+        mock_braket_service.create_circuit_visualization.return_value = {
+            'circuit_def': mock_circuit_def,
+            'description': {'summary': 'Test circuit'},
+            'ascii_visualization': 'q0: ─H──●─\nq1: ────X─',
+            'visualization_file': '/path/to/circuit.png',
+            'num_qubits': 2,
+            'num_gates': 3
+        }
+        
         # Step 1: Create a quantum circuit
         circuit_result = create_quantum_circuit(
             num_qubits=2,
@@ -91,6 +111,26 @@ class TestEndToEndWorkflows:
     
     def test_bell_pair_circuit_workflow(self, mock_braket_service):
         """Test Bell pair circuit creation and execution workflow."""
+        # Mock bell pair circuit creation response
+        mock_circuit_def = {
+            'num_qubits': 2,
+            'gates': [
+                {'name': 'h', 'qubits': [0]},
+                {'name': 'cx', 'qubits': [0, 1]},
+                {'name': 'measure_all'}
+            ],
+            'metadata': None
+        }
+        
+        mock_braket_service.create_circuit_visualization.return_value = {
+            'circuit_def': mock_circuit_def,
+            'description': {'summary': 'Bell pair circuit'},
+            'ascii_visualization': 'q0: ─H──●─\nq1: ────X─',
+            'visualization_file': '/path/to/bell.png',
+            'num_qubits': 2,
+            'num_gates': 3
+        }
+        
         # Create Bell pair circuit
         bell_result = create_bell_pair_circuit()
         
@@ -158,6 +198,27 @@ class TestEndToEndWorkflows:
         # Select a device and create a circuit for it
         selected_device_arn = devices_result[0]['device_arn']
         
+        # Mock circuit creation for device discovery test
+        mock_circuit_def = {
+            'num_qubits': 3,
+            'gates': [
+                {'name': 'h', 'qubits': [0]},
+                {'name': 'h', 'qubits': [1]},
+                {'name': 'h', 'qubits': [2]},
+                {'name': 'measure_all'}
+            ],
+            'metadata': None
+        }
+        
+        mock_braket_service.create_circuit_visualization.return_value = {
+            'circuit_def': mock_circuit_def,
+            'description': {'summary': 'Device discovery test circuit'},
+            'ascii_visualization': 'q0: ─H─\nq1: ─H─\nq2: ─H─',
+            'visualization_file': '/path/to/device_test.png',
+            'num_qubits': 3,
+            'num_gates': 4
+        }
+        
         circuit_result = create_quantum_circuit(
             num_qubits=3,
             gates=[
@@ -185,7 +246,7 @@ class TestErrorRecoveryWorkflows:
     def test_circuit_creation_error_recovery(self, mock_braket_service):
         """Test recovery from circuit creation errors."""
         # First attempt fails
-        mock_braket_service.create_qiskit_circuit.side_effect = Exception("Invalid gate")
+        mock_braket_service.create_circuit_visualization.side_effect = Exception("Invalid gate")
         
         result = create_quantum_circuit(
             num_qubits=2,
@@ -196,8 +257,15 @@ class TestErrorRecoveryWorkflows:
         assert 'Invalid gate' in result['error']
         
         # Second attempt succeeds
-        mock_braket_service.create_qiskit_circuit.side_effect = None
-        mock_braket_service.create_qiskit_circuit.return_value = MagicMock()
+        mock_braket_service.create_circuit_visualization.side_effect = None
+        mock_braket_service.create_circuit_visualization.return_value = {
+            'circuit_def': {'num_qubits': 2, 'gates': [], 'metadata': None},
+            'description': {'summary': 'Recovery test circuit'},
+            'ascii_visualization': 'q0: ─H─',
+            'visualization_file': '/path/to/recovery.png',
+            'num_qubits': 2,
+            'num_gates': 1
+        }
         
         result = create_quantum_circuit(
             num_qubits=2,
@@ -209,6 +277,22 @@ class TestErrorRecoveryWorkflows:
     
     def test_task_execution_error_recovery(self, mock_braket_service):
         """Test recovery from task execution errors."""
+        # Mock circuit creation first
+        mock_circuit_def = {
+            'num_qubits': 1,
+            'gates': [{'name': 'x', 'qubits': [0]}],
+            'metadata': None
+        }
+        
+        mock_braket_service.create_circuit_visualization.return_value = {
+            'circuit_def': mock_circuit_def,
+            'description': {'summary': 'Error recovery test circuit'},
+            'ascii_visualization': 'q0: ─X─',
+            'visualization_file': '/path/to/error_test.png',
+            'num_qubits': 1,
+            'num_gates': 1
+        }
+        
         # Create a valid circuit
         circuit_result = create_quantum_circuit(
             num_qubits=1,
@@ -254,6 +338,22 @@ class TestPerformanceWorkflows:
         
         gates.append({'name': 'measure_all'})
         
+        # Mock large circuit creation
+        mock_circuit_def = {
+            'num_qubits': 10,
+            'gates': gates,
+            'metadata': None
+        }
+        
+        mock_braket_service.create_circuit_visualization.return_value = {
+            'circuit_def': mock_circuit_def,
+            'description': {'summary': 'Large 10-qubit circuit'},
+            'ascii_visualization': 'q0-q9: Large circuit visualization',
+            'visualization_file': '/path/to/large.png',
+            'num_qubits': 10,
+            'num_gates': len(gates)
+        }
+        
         circuit_result = create_quantum_circuit(
             num_qubits=10,
             gates=gates
@@ -275,6 +375,30 @@ class TestPerformanceWorkflows:
         """Test workflow with multiple circuits."""
         circuits = []
         task_ids = []
+        
+        # Mock circuit creation for multiple circuits
+        def mock_circuit_creation(*args, **kwargs):
+            circuit_num = len(circuits)
+            mock_circuit_def = {
+                'num_qubits': 2,
+                'gates': [
+                    {'name': 'h', 'qubits': [0]},
+                    {'name': 'rx', 'qubits': [1], 'params': [circuit_num * 0.5]},
+                    {'name': 'cx', 'qubits': [0, 1]},
+                    {'name': 'measure_all'}
+                ],
+                'metadata': None
+            }
+            return {
+                'circuit_def': mock_circuit_def,
+                'description': {'summary': f'Batch circuit {circuit_num}'},
+                'ascii_visualization': f'q0: ─H──●─\nq1: ─RX──X─',
+                'visualization_file': f'/path/to/batch_{circuit_num}.png',
+                'num_qubits': 2,
+                'num_gates': 4
+            }
+        
+        mock_braket_service.create_circuit_visualization.side_effect = mock_circuit_creation
         
         # Create multiple circuits
         for i in range(3):
@@ -311,6 +435,26 @@ class TestConfigurationWorkflows:
     
     def test_s3_storage_workflow(self, mock_braket_service):
         """Test workflow with S3 result storage."""
+        # Mock circuit creation
+        mock_circuit_def = {
+            'num_qubits': 2,
+            'gates': [
+                {'name': 'h', 'qubits': [0]},
+                {'name': 'cx', 'qubits': [0, 1]},
+                {'name': 'measure_all'}
+            ],
+            'metadata': None
+        }
+        
+        mock_braket_service.create_circuit_visualization.return_value = {
+            'circuit_def': mock_circuit_def,
+            'description': {'summary': 'S3 storage test circuit'},
+            'ascii_visualization': 'q0: ─H──●─\nq1: ────X─',
+            'visualization_file': '/path/to/s3_test.png',
+            'num_qubits': 2,
+            'num_gates': 3
+        }
+        
         circuit_result = create_quantum_circuit(
             num_qubits=2,
             gates=[
@@ -338,6 +482,25 @@ class TestConfigurationWorkflows:
     
     def test_different_shot_counts_workflow(self, mock_braket_service):
         """Test workflow with different shot counts."""
+        # Mock circuit creation
+        mock_circuit_def = {
+            'num_qubits': 1,
+            'gates': [
+                {'name': 'h', 'qubits': [0]},
+                {'name': 'measure_all'}
+            ],
+            'metadata': None
+        }
+        
+        mock_braket_service.create_circuit_visualization.return_value = {
+            'circuit_def': mock_circuit_def,
+            'description': {'summary': 'Shot count test circuit'},
+            'ascii_visualization': 'q0: ─H─M─',
+            'visualization_file': '/path/to/shot_test.png',
+            'num_qubits': 1,
+            'num_gates': 2
+        }
+        
         circuit_result = create_quantum_circuit(
             num_qubits=1,
             gates=[

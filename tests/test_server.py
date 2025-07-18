@@ -46,9 +46,15 @@ def mock_braket_service():
 
 def test_create_quantum_circuit(mock_braket_service):
     """Test creating a quantum circuit."""
-    # Mock the create_qiskit_circuit and visualize_circuit methods
-    mock_braket_service.create_qiskit_circuit.return_value = MagicMock()
-    mock_braket_service.visualize_circuit.return_value = "base64_image_data"
+    # Mock the create_circuit_visualization method
+    mock_braket_service.create_circuit_visualization.return_value = {
+        'circuit_def': {'num_qubits': 2, 'gates': []},
+        'description': {'summary': 'Test circuit'},
+        'ascii_visualization': 'q0: ─H─',
+        'visualization_file': '/path/to/file.png',
+        'num_qubits': 2,
+        'num_gates': 2
+    }
     
     # Call the function
     result = create_quantum_circuit(
@@ -61,28 +67,30 @@ def test_create_quantum_circuit(mock_braket_service):
     
     # Check the result
     assert "circuit_def" in result
-    assert "visualization" in result
     assert result["num_qubits"] == 2
     assert result["num_gates"] == 2
-    assert mock_braket_service.create_qiskit_circuit.called
-    assert mock_braket_service.visualize_circuit.called
+    assert mock_braket_service.create_circuit_visualization.called
 
 
 def test_create_bell_pair_circuit(mock_braket_service):
     """Test creating a Bell pair circuit."""
-    # Mock the create_bell_pair_circuit and visualize_circuit methods
-    mock_braket_service.create_bell_pair_circuit.return_value = MagicMock()
-    mock_braket_service.visualize_circuit.return_value = "base64_image_data"
+    # Mock the create_circuit_visualization method
+    mock_braket_service.create_circuit_visualization.return_value = {
+        'circuit_def': {'num_qubits': 2, 'gates': []},
+        'description': {'summary': 'Bell pair circuit'},
+        'ascii_visualization': 'q0: ─H──●─\nq1: ────X─',
+        'visualization_file': '/path/to/bell.png',
+        'num_qubits': 2,
+        'num_gates': 3
+    }
     
     # Call the function
     result = create_bell_pair_circuit()
     
     # Check the result
     assert "circuit_def" in result
-    assert "visualization" in result
     assert result["num_qubits"] == 2
-    assert mock_braket_service.create_bell_pair_circuit.called
-    assert mock_braket_service.visualize_circuit.called
+    assert mock_braket_service.create_circuit_visualization.called
 
 
 def test_list_devices(mock_braket_service):
@@ -322,22 +330,25 @@ class TestCircuitCreation:
     
     def test_create_ghz_circuit_success(self, mock_braket_service):
         """Test successful GHZ circuit creation."""
-        mock_braket_service.create_qiskit_circuit.return_value = MagicMock()
-        mock_braket_service.visualize_circuit.return_value = 'base64_image'
+        mock_braket_service.create_circuit_visualization.return_value = {
+            'circuit_def': {'num_qubits': 3, 'gates': []},
+            'description': {'summary': 'GHZ circuit'},
+            'ascii_visualization': 'q0: ─H──●──│─\nq1: ────X──●─\nq2: ────│──X─',
+            'visualization_file': '/path/to/ghz.png',
+            'num_qubits': 3,
+            'num_gates': 4
+        }
         
         result = create_ghz_circuit(num_qubits=3)
         
         assert result['num_qubits'] == 3
         assert result['num_gates'] == 4  # H + 2 CNOT + measure_all
-        assert result['visualization'] == 'base64_image'
         assert 'circuit_def' in result
-        
-        # The server creates the circuit directly, not via create_qiskit_circuit
-        mock_braket_service.visualize_circuit.assert_called_once()
+        assert mock_braket_service.create_circuit_visualization.called
     
     def test_create_ghz_circuit_error(self, mock_braket_service):
         """Test GHZ circuit creation error handling."""
-        mock_braket_service.visualize_circuit.side_effect = Exception("Circuit error")
+        mock_braket_service.create_circuit_visualization.side_effect = Exception("Circuit error")
         
         result = create_ghz_circuit(num_qubits=2)
         
@@ -346,22 +357,24 @@ class TestCircuitCreation:
     
     def test_create_qft_circuit_success(self, mock_braket_service):
         """Test successful QFT circuit creation."""
-        mock_braket_service.create_qiskit_circuit.return_value = MagicMock()
-        mock_braket_service.visualize_circuit.return_value = 'base64_image'
+        mock_braket_service.create_circuit_visualization.return_value = {
+            'circuit_def': {'num_qubits': 4, 'gates': [], 'metadata': {'description': 'Quantum Fourier Transform'}},
+            'description': {'summary': 'QFT circuit'},
+            'ascii_visualization': 'q0: ─QFT─',
+            'visualization_file': '/path/to/qft.png',
+            'num_qubits': 4,
+            'num_gates': 2
+        }
         
         result = create_qft_circuit(num_qubits=4)
         
         assert result['num_qubits'] == 4
-        assert result['description'] == 'Quantum Fourier Transform'
-        assert result['visualization'] == 'base64_image'
         assert 'circuit_def' in result
-        
-        # The server creates the circuit directly, not via create_qiskit_circuit
-        mock_braket_service.visualize_circuit.assert_called_once()
+        assert mock_braket_service.create_circuit_visualization.called
     
     def test_create_qft_circuit_error(self, mock_braket_service):
         """Test QFT circuit creation error handling."""
-        mock_braket_service.visualize_circuit.side_effect = Exception("Visualization error")
+        mock_braket_service.create_circuit_visualization.side_effect = Exception("Visualization error")
         
         result = create_qft_circuit(num_qubits=3)
         
@@ -404,7 +417,12 @@ class TestVisualization:
     
     def test_visualize_results_success(self, mock_braket_service):
         """Test successful results visualization."""
-        mock_braket_service.visualize_results.return_value = 'base64_plot_image'
+        mock_braket_service.create_results_visualization.return_value = {
+            'result': {'task_id': 'test-task', 'counts': {'00': 250, '01': 250}},
+            'description': {'summary': 'Test results'},
+            'ascii_visualization': 'Results histogram',
+            'visualization_file': '/path/to/results.png'
+        }
         
         results = {
             'task_id': 'test-task',
@@ -417,13 +435,13 @@ class TestVisualization:
         
         result = visualize_results(results)
         
-        assert result['visualization'] == 'base64_plot_image'
-        
-        mock_braket_service.visualize_results.assert_called_once()
+        assert 'result' in result
+        assert 'description' in result
+        assert mock_braket_service.create_results_visualization.called
     
     def test_visualize_results_error(self, mock_braket_service):
         """Test results visualization error handling."""
-        mock_braket_service.visualize_results.side_effect = Exception("Plot error")
+        mock_braket_service.create_results_visualization.side_effect = Exception("Plot error")
         
         results = {
             'task_id': 'test-task',
@@ -474,8 +492,14 @@ class TestEdgeCases:
     
     def test_create_ghz_circuit_single_qubit(self, mock_braket_service):
         """Test GHZ circuit creation with single qubit."""
-        mock_braket_service.create_qiskit_circuit.return_value = MagicMock()
-        mock_braket_service.visualize_circuit.return_value = 'single_qubit_image'
+        mock_braket_service.create_circuit_visualization.return_value = {
+            'circuit_def': {'num_qubits': 1, 'gates': []},
+            'description': {'summary': 'Single qubit GHZ circuit'},
+            'ascii_visualization': 'q0: ─H─M─',
+            'visualization_file': '/path/to/single.png',
+            'num_qubits': 1,
+            'num_gates': 2
+        }
         
         result = create_ghz_circuit(num_qubits=1)
         
@@ -484,13 +508,18 @@ class TestEdgeCases:
         
     def test_create_qft_circuit_single_qubit(self, mock_braket_service):
         """Test QFT circuit creation with single qubit."""
-        mock_braket_service.create_qiskit_circuit.return_value = MagicMock()
-        mock_braket_service.visualize_circuit.return_value = 'qft_single_image'
+        mock_braket_service.create_circuit_visualization.return_value = {
+            'circuit_def': {'num_qubits': 1, 'gates': [], 'metadata': {'description': 'Quantum Fourier Transform'}},
+            'description': {'summary': 'Single qubit QFT circuit'},
+            'ascii_visualization': 'q0: ─QFT─M─',
+            'visualization_file': '/path/to/qft_single.png',
+            'num_qubits': 1,
+            'num_gates': 2
+        }
         
         result = create_qft_circuit(num_qubits=1)
         
         assert result['num_qubits'] == 1
-        assert result['description'] == 'Quantum Fourier Transform'
 
 
 # ============================================================================

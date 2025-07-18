@@ -56,8 +56,10 @@ def get_braket_service():
     global _braket_service
     if _braket_service is None:
         region = os.environ.get('AWS_REGION', None)
+        workspace_dir = os.environ.get('BRAKET_WORKSPACE_DIR', os.getcwd())
         logger.info(f'AWS_REGION: {region}')
-        _braket_service = BraketService(region_name=region)
+        logger.info(f'BRAKET_WORKSPACE_DIR: {workspace_dir}')
+        _braket_service = BraketService(region_name=region, workspace_dir=workspace_dir)
 
     return _braket_service
 
@@ -105,18 +107,12 @@ def create_quantum_circuit(num_qubits: int, gates: List[Dict[str, Any]]) -> Dict
         # Create the circuit definition
         circuit_def = QuantumCircuit(num_qubits=num_qubits, gates=gate_objects)
         
-        # Create the Qiskit circuit
-        qiskit_circuit = get_braket_service().create_qiskit_circuit(circuit_def)
+        # Create visualization
+        response = get_braket_service().create_circuit_visualization(
+            circuit_def, "custom"
+        )
         
-        # Visualize the circuit
-        circuit_image = get_braket_service().visualize_circuit(qiskit_circuit)
-        
-        return {
-            'circuit_def': circuit_def.model_dump(),
-            'visualization': circuit_image,
-            'num_qubits': num_qubits,
-            'num_gates': len(gate_objects),
-        }
+        return response
     except Exception as e:
         logger.exception(f"Error creating quantum circuit: {str(e)}")
         return {'error': str(e)}
@@ -313,12 +309,6 @@ def create_bell_pair_circuit() -> Dict[str, Any]:
         Dictionary containing the circuit definition and visualization
     """
     try:
-        # Create the Bell pair circuit
-        qiskit_circuit = get_braket_service().create_bell_pair_circuit()
-        
-        # Visualize the circuit
-        circuit_image = get_braket_service().visualize_circuit(qiskit_circuit)
-        
         # Convert to a circuit definition
         circuit_def = QuantumCircuit(
             num_qubits=2,
@@ -329,12 +319,12 @@ def create_bell_pair_circuit() -> Dict[str, Any]:
             ],
         )
         
-        return {
-            'circuit_def': circuit_def.model_dump(),
-            'visualization': circuit_image,
-            'num_qubits': 2,
-            'num_gates': 3,
-        }
+        # Create visualization
+        response = get_braket_service().create_circuit_visualization(
+            circuit_def, "bell_pair"
+        )
+        
+        return response
     except Exception as e:
         logger.exception(f"Error creating Bell pair circuit: {str(e)}")
         return {'error': str(e)}
@@ -351,12 +341,6 @@ def create_ghz_circuit(num_qubits: int = 3) -> Dict[str, Any]:
         Dictionary containing the circuit definition and visualization
     """
     try:
-        # Create the GHZ circuit
-        qiskit_circuit = get_braket_service().create_ghz_circuit(num_qubits)
-        
-        # Visualize the circuit
-        circuit_image = get_braket_service().visualize_circuit(qiskit_circuit)
-        
         # Create the circuit definition
         gates = [Gate(name='h', qubits=[0])]
         for i in range(num_qubits - 1):
@@ -368,12 +352,12 @@ def create_ghz_circuit(num_qubits: int = 3) -> Dict[str, Any]:
             gates=gates,
         )
         
-        return {
-            'circuit_def': circuit_def.model_dump(),
-            'visualization': circuit_image,
-            'num_qubits': num_qubits,
-            'num_gates': len(gates),
-        }
+        # Create visualization
+        response = get_braket_service().create_circuit_visualization(
+            circuit_def, "ghz"
+        )
+        
+        return response
     except Exception as e:
         logger.exception(f"Error creating GHZ circuit: {str(e)}")
         return {'error': str(e)}
@@ -390,12 +374,6 @@ def create_qft_circuit(num_qubits: int = 3) -> Dict[str, Any]:
         Dictionary containing the circuit definition and visualization
     """
     try:
-        # Create the QFT circuit
-        qiskit_circuit = get_braket_service().create_qft_circuit(num_qubits)
-        
-        # Visualize the circuit
-        circuit_image = get_braket_service().visualize_circuit(qiskit_circuit)
-        
         # Create a simplified circuit definition (actual QFT is more complex)
         circuit_def = QuantumCircuit(
             num_qubits=num_qubits,
@@ -403,12 +381,12 @@ def create_qft_circuit(num_qubits: int = 3) -> Dict[str, Any]:
             metadata={'description': 'Quantum Fourier Transform'},
         )
         
-        return {
-            'circuit_def': circuit_def.model_dump(),
-            'visualization': circuit_image,
-            'num_qubits': num_qubits,
-            'description': 'Quantum Fourier Transform',
-        }
+        # Create visualization
+        response = get_braket_service().create_circuit_visualization(
+            circuit_def, "qft"
+        )
+        
+        return response
     except Exception as e:
         logger.exception(f"Error creating QFT circuit: {str(e)}")
         return {'error': str(e)}
@@ -475,14 +453,83 @@ def visualize_results(result: Dict[str, Any]) -> Dict[str, Any]:
             metadata=result.get('metadata'),
         )
         
-        # Visualize the results
-        result_image = get_braket_service().visualize_results(task_result)
+        # Create visualization
+        response = get_braket_service().create_results_visualization(task_result)
         
-        return {
-            'visualization': result_image,
-        }
+        return response
     except Exception as e:
         logger.exception(f"Error visualizing results: {str(e)}")
+        return {'error': str(e)}
+
+
+@mcp.tool(name='describe_visualization')
+def describe_visualization(visualization_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert visualization data into human-readable descriptions.
+    
+    Args:
+        visualization_data: Visualization data from circuit or results
+    
+    Returns:
+        Dictionary containing human-readable descriptions
+    """
+    try:
+        # Check if this is circuit or results data
+        if 'circuit_def' in visualization_data:
+            # This is circuit visualization data
+            circuit_dict = visualization_data['circuit_def']
+            
+            # Convert to QuantumCircuit object
+            gate_objects = []
+            for gate_dict in circuit_dict.get('gates', []):
+                gate = Gate(
+                    name=gate_dict.get('name'),
+                    qubits=gate_dict.get('qubits', []),
+                    params=gate_dict.get('params'),
+                )
+                gate_objects.append(gate)
+            
+            circuit_def = QuantumCircuit(
+                num_qubits=circuit_dict.get('num_qubits'),
+                gates=gate_objects,
+                metadata=circuit_dict.get('metadata'),
+            )
+            
+            # Generate description
+            description = get_braket_service().describe_circuit(circuit_def)
+            return {
+                'type': 'circuit_description',
+                'description': description
+            }
+            
+        elif 'result' in visualization_data:
+            # This is results visualization data
+            result_dict = visualization_data['result']
+            
+            # Convert to TaskResult object
+            task_result = TaskResult(
+                task_id=result_dict.get('task_id'),
+                status=result_dict.get('status'),
+                measurements=result_dict.get('measurements'),
+                counts=result_dict.get('counts'),
+                device=result_dict.get('device'),
+                shots=result_dict.get('shots'),
+                execution_time=result_dict.get('execution_time'),
+                metadata=result_dict.get('metadata'),
+            )
+            
+            # Generate description
+            description = get_braket_service().describe_results(task_result)
+            return {
+                'type': 'results_description',
+                'description': description
+            }
+        else:
+            return {
+                'error': 'Unknown visualization data format. Expected circuit_def or result fields.'
+            }
+            
+    except Exception as e:
+        logger.exception(f"Error describing visualization: {str(e)}")
         return {'error': str(e)}
 
 

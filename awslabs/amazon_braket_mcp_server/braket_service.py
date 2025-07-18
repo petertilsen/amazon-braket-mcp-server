@@ -52,6 +52,7 @@ from awslabs.amazon_braket_mcp_server.exceptions import (
     TaskResultError,
     DeviceError,
 )
+from awslabs.amazon_braket_mcp_server.visualization import VisualizationUtils
 
 
 class BraketService:
@@ -74,11 +75,12 @@ class BraketService:
         'ap-southeast-1'
     }
 
-    def __init__(self, region_name: Optional[str] = None):
+    def __init__(self, region_name: Optional[str] = None, workspace_dir: Optional[str] = None):
         """Initialize a connection to Amazon Braket service.
 
         Args:
             region_name: AWS region name. If not provided, uses the default region from AWS configuration.
+            workspace_dir: Directory to save visualization files. If None, uses temp directory.
             
         Raises:
             ValueError: If the specified region doesn't support Amazon Braket
@@ -98,6 +100,9 @@ class BraketService:
         try:
             self.braket_client = boto3.client('braket', region_name=region_name)
             self.provider = BraketProvider()
+            
+            # Initialize visualization utilities
+            self.viz_utils = VisualizationUtils(workspace_dir)
             logger.debug(f'Initialized BraketService with region: {region_name}')
             
             # Test basic connectivity and permissions
@@ -707,3 +712,73 @@ class BraketService:
         except Exception as e:
             logger.exception(f"Error visualizing results: {str(e)}")
             raise TaskResultError(f"Error visualizing results: {str(e)}")
+    
+    def create_circuit_visualization(self,
+                                     circuit: QuantumCircuit,
+                                     circuit_type: str = "custom") -> Dict[str, Any]:
+        """Create a visualization response for a quantum circuit.
+        
+        Args:
+            circuit: The quantum circuit to visualize
+            circuit_type: Type of circuit (e.g., "bell_pair", "ghz", "qft")
+            
+        Returns:
+            Response dictionary with descriptions, ASCII art, and file paths
+        """
+        try:
+            # Create the Qiskit circuit for visualization
+            qiskit_circuit = self.create_qiskit_circuit(circuit)
+            
+            # Generate base64 visualization
+            base64_viz = self.visualize_circuit(qiskit_circuit)
+            
+            # Create response
+            return self.viz_utils.create_circuit_response(
+                circuit, base64_viz, circuit_type
+            )
+            
+        except Exception as e:
+            logger.exception(f"Error creating circuit visualization: {str(e)}")
+            raise CircuitCreationError(f"Error creating circuit visualization: {str(e)}")
+    
+    def create_results_visualization(self, result: TaskResult) -> Dict[str, Any]:
+        """Create a visualization response for quantum results.
+        
+        Args:
+            result: The quantum task result to visualize
+            
+        Returns:
+            Response dictionary with descriptions, ASCII art, and file paths
+        """
+        try:
+            # Generate base64 visualization
+            base64_viz = self.visualize_results(result)
+            
+            # Create response
+            return self.viz_utils.create_results_response(result, base64_viz)
+            
+        except Exception as e:
+            logger.exception(f"Error creating results visualization: {str(e)}")
+            raise TaskResultError(f"Error creating results visualization: {str(e)}")
+    
+    def describe_circuit(self, circuit: QuantumCircuit) -> Dict[str, Any]:
+        """Generate a human-readable description of a quantum circuit.
+        
+        Args:
+            circuit: The quantum circuit to describe
+            
+        Returns:
+            Dictionary containing circuit description and analysis
+        """
+        return self.viz_utils.describe_circuit(circuit)
+    
+    def describe_results(self, result: TaskResult) -> Dict[str, Any]:
+        """Generate a human-readable description of quantum results.
+        
+        Args:
+            result: The quantum task result to describe
+            
+        Returns:
+            Dictionary containing result description and analysis
+        """
+        return self.viz_utils.describe_results(result)

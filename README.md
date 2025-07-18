@@ -35,12 +35,23 @@ This server requires the following key dependencies:
 ### AWS Credentials
 The server requires AWS credentials with permissions to access Amazon Braket services. Configure using:
 
-1. **Environment variables**: 
-   ```bash
-   export AWS_ACCESS_KEY_ID=your_access_key
-   export AWS_SECRET_ACCESS_KEY=your_secret_key
-   export AWS_REGION=us-east-1
-   ```
+### Environment Variables
+The server supports several environment variables for configuration:
+
+```bash
+# AWS Configuration
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_REGION=us-east-1
+
+# Braket-specific Configuration
+export BRAKET_DEFAULT_DEVICE_ARN=arn:aws:braket:::device/quantum-simulator/amazon/sv1
+export BRAKET_WORKSPACE_DIR=/path/to/your/workspace  # For saving visualizations
+
+# Optional S3 Configuration
+export BRAKET_S3_BUCKET=your-quantum-results-bucket
+export BRAKET_S3_PREFIX=experiments/
+```
 
 2. **AWS credentials file**: 
    ```bash
@@ -290,30 +301,174 @@ cancel_result = cancel_quantum_task(
 ### Visualization Tools
 
 #### `visualize_circuit`
-Generate visual representations of quantum circuits.
+Generate visual representations of quantum circuits with AI-friendly descriptions.
 
 **Parameters:**
 - `circuit` (dict): Circuit definition to visualize
 
-**Example:**
-```python
-# Visualize any circuit
-visualization = visualize_circuit(circuit=qft_circuit)
-# Returns base64-encoded PNG image of the circuit diagram
+**Response Format:**
+```json
+{
+  "circuit_def": {...},
+  "description": {
+    "summary": "Bell pair circuit creating quantum entanglement between 2 qubits",
+    "gate_sequence": [
+      "Step 1: Apply Hadamard gate to qubit 0 (creates superposition)",
+      "Step 2: Apply CNOT gate from qubit 0 to qubit 1 (creates entanglement)"
+    ],
+    "expected_behavior": "Creates Bell state |00⟩ + |11⟩, showing perfect correlation",
+    "complexity": {"complexity_level": "low", "estimated_runtime": "fast"}
+  },
+  "ascii_visualization": "q0: ─H──●──M─\nq1: ────X──M─",
+  "visualization_file": "/path/to/saved/circuit.png",
+  "visualization_data": "base64_encoded_image",
+  "usage_note": "Circuit visualization saved to file. Use image viewer for detailed diagram."
+}
+```
+
+**ASCII Circuit Examples:**
+```
+Bell Pair Circuit:
+q0: ─H──●──M─
+q1: ────X──M─
+
+GHZ State Circuit (3 qubits):
+q0: ─H──●──│──M─
+q1: ────X──●──M─
+q2: ────│──X──M─
+
+Custom Circuit with Rotations:
+q0: ─H──●────────M─
+q1: ────X──RY(π/4)─M─
+q2: ─────────────M─
 ```
 
 #### `visualize_results`
-Create histograms and charts from quantum measurement results.
+Create histograms and analysis from quantum measurement results.
 
 **Parameters:**
 - `result` (dict): Results from get_task_result
 
+**Response Format:**
+```json
+{
+  "result": {...},
+  "description": {
+    "summary": "Measured 2 different outcomes over 1000 shots. Most frequent: |11⟩ (55.0%)",
+    "statistics": {
+      "total_shots": 1000,
+      "unique_outcomes": 2,
+      "probabilities": {"00": 0.45, "11": 0.55},
+      "entropy": 0.993
+    },
+    "insights": ["Results suggest quantum entanglement (Bell state pattern)"]
+  },
+  "ascii_visualization": "ASCII histogram of measurement results",
+  "visualization_file": "/path/to/saved/results.png"
+}
+```
+
+**ASCII Results Example:**
+```
+Measurement Results Histogram:
+==================================================
+|00⟩: ████████████████████████████████           45 ( 45.0%)
+|11⟩: ████████████████████████████████████████   55 ( 55.0%)
+==================================================
+Total shots: 100
+```
+
+#### `describe_visualization`
+Convert any visualization data into human-readable descriptions for AI model understanding.
+
+**Parameters:**
+- `visualization_data` (dict): Output from any visualization tool
+
 **Example:**
 ```python
-# Visualize measurement outcomes
-chart = visualize_results(result=task_results)
-# Returns histogram showing measurement probabilities
+# Get human-readable description of any visualization
+description = describe_visualization(bell_circuit_response)
+
+# Returns detailed analysis:
+# - Circuit purpose and quantum phenomena
+# - Step-by-step gate explanations  
+# - Expected measurement patterns
+# - Complexity and runtime estimates
 ```
+
+## 🎨 Visualization Features
+
+This MCP server includes advanced visualization capabilities designed to be AI model-friendly, providing both visual and textual representations of quantum circuits and results.
+
+### Key Features
+
+#### 🔤 ASCII Circuit Diagrams
+All circuits are automatically converted to ASCII representations that AI models can directly read and understand:
+
+```
+Bell Pair Circuit:
+q0: ─H──●──M─
+q1: ────X──M─
+
+Quantum Fourier Transform:
+q0: ─H──●────●────────────M─
+q1: ────│──H──●──────────M─
+q2: ────│─────│──H───────M─
+```
+
+#### 📝 Human-Readable Descriptions
+Every circuit and result includes detailed descriptions:
+
+- **Circuit Summary**: "Bell pair circuit creating quantum entanglement between 2 qubits"
+- **Gate Sequence**: Step-by-step explanations of each operation
+- **Expected Behavior**: Predictions of quantum phenomena (entanglement, superposition)
+- **Complexity Analysis**: Runtime estimates and difficulty levels
+
+#### 📊 Intelligent Results Analysis
+Measurement results include automatic pattern detection:
+
+- **Quantum Phenomena Detection**: Identifies Bell states, GHZ states, superposition patterns
+- **Statistical Analysis**: Entropy calculations, probability distributions
+- **Correlation Analysis**: Detects quantum entanglement signatures
+- **ASCII Histograms**: Text-based visualization of measurement outcomes
+
+#### 💾 Automatic File Management
+All visualizations are automatically saved with metadata:
+
+- **Timestamped Files**: Organized in `braket_visualizations/` directory
+- **Metadata Files**: Include descriptions, creation time, and usage notes
+- **Usage Instructions**: Clear guidance on viewing saved visualizations
+
+### Response Structure
+
+All visualization tools now return comprehensive responses:
+
+```json
+{
+  "circuit_def": "Standard circuit definition",
+  "description": {
+    "type": "quantum_circuit",
+    "summary": "Human-readable circuit purpose",
+    "gate_sequence": ["Step-by-step gate explanations"],
+    "expected_behavior": "Quantum phenomena description",
+    "complexity": {"level": "low", "runtime": "fast"}
+  },
+  "ascii_visualization": "Text-based circuit diagram",
+  "visualization_file": "/path/to/saved/image.png",
+  "visualization_data": "base64_encoded_image",
+  "usage_note": "Instructions for viewing the visualization"
+}
+```
+
+### Configuration
+
+Set the workspace directory for saving visualizations:
+
+```bash
+export BRAKET_WORKSPACE_DIR=/path/to/your/workspace
+```
+
+If not set, visualizations are saved to the current working directory under `braket_visualizations/`.
 
 ## 📚 MCP Usage Examples
 
@@ -337,9 +492,18 @@ These examples show how to interact with the Amazon Braket MCP server through na
          {"name": "measure_all"}
        ]
      },
-     "visualization": "iVBORw0KGgoAAAANSUhEUgAA...",
-     "num_qubits": 2,
-     "num_gates": 3
+     "description": {
+       "summary": "Bell pair circuit creating quantum entanglement between 2 qubits",
+       "gate_sequence": [
+         "Step 1: Apply Hadamard gate to qubit 0 (creates superposition)",
+         "Step 2: Apply CNOT gate from qubit 0 to qubit 1 (creates entanglement)",
+         "Step 3: Measure all qubits"
+       ],
+       "expected_behavior": "Creates Bell state |00⟩ + |11⟩, showing perfect correlation in measurements"
+     },
+     "ascii_visualization": "q0: ─H──●──M─\nq1: ────X──M─",
+     "visualization_file": "/workspace/braket_visualizations/bell_pair_circuit_20240115_103045.png",
+     "usage_note": "Circuit visualization saved to file. Use image viewer to see detailed diagram."
    }
    ```
 
@@ -365,7 +529,14 @@ These examples show how to interact with the Amazon Braket MCP server through na
    ```
 
 **Expected Response:**
-> "Perfect! The Bell pair circuit demonstrates quantum entanglement beautifully. Out of 1000 measurements, we got 487 |00⟩ states and 513 |11⟩ states - notice we never see |01⟩ or |10⟩! This shows the qubits are perfectly correlated, which is the hallmark of quantum entanglement."
+> "Perfect! I've created a Bell pair circuit that demonstrates quantum entanglement beautifully. Looking at the ASCII diagram:
+> 
+> ```
+> q0: ─H──●──M─
+> q1: ────X──M─
+> ```
+> 
+> This circuit first puts qubit 0 in superposition with the Hadamard gate (H), then creates entanglement using a CNOT gate (●─X). The results show 487 |00⟩ states and 513 |11⟩ states - notice we never see |01⟩ or |10⟩! This perfect correlation is the hallmark of quantum entanglement. The detailed circuit diagram has been saved to your workspace for reference."
 
 ### Example 2: Device Comparison Study
 
@@ -497,21 +668,40 @@ These examples show how to interact with the Amazon Braket MCP server through na
 3. **Tool Call:** `visualize_results(result=task_results)`
    ```json
    {
-     "visualization": "iVBORw0KGgoAAAANSUhEUgAA..."
+     "result": {...},
+     "description": {
+       "summary": "Measured 2 different outcomes over 1000 shots. Most frequent: |11⟩ (51.3%)",
+       "statistics": {
+         "total_shots": 1000,
+         "unique_outcomes": 2,
+         "probabilities": {"00": 0.487, "11": 0.513},
+         "entropy": 0.999
+       },
+       "insights": ["Results suggest quantum entanglement (Bell state pattern)"]
+     },
+     "ascii_visualization": "Measurement Results Histogram:\n==================================================\n|00⟩: ████████████████████████████████████████   487 ( 48.7%)\n|11⟩: ██████████████████████████████████████████ 513 ( 51.3%)\n==================================================\nTotal shots: 1000"
    }
    ```
 
 **Expected Response:**
-> "Here are your recent quantum computing jobs:
+> "Here are your recent quantum computing jobs with analysis:
 > 
 > **Task 1** (SV1 Simulator - Jan 15):
 > - 1000 shots completed in 2.3 seconds
 > - Results show fairly uniform distribution across all 3-qubit states
-> - Histogram visualization shows the measurement probabilities
+> - ASCII histogram visualization:
+> ```
+> |000⟩: ████████████████████████████████████████   234 ( 23.4%)
+> |001⟩: ██████████████████████████████████████████ 251 ( 25.1%)
+> |010⟩: █████████████████████████████████████████  243 ( 24.3%)
+> |011⟩: ███████████████████████████████████████████ 272 ( 27.2%)
+> ```
+> - Pattern analysis indicates quantum superposition across multiple states
 > 
 > **Task 2** (IonQ Harmony - Jan 14):
 > - Real quantum hardware execution with 100 shots
-> - Results will show quantum noise and decoherence effects typical of NISQ devices"
+> - Results show quantum noise and decoherence effects typical of NISQ devices
+> - Detailed visualizations saved to your workspace for comparison"
 
 ### Example 5: Quantum Algorithm Learning
 
@@ -536,9 +726,13 @@ These examples show how to interact with the Amazon Braket MCP server through na
          {"name": "measure_all"}
        ]
      },
-     "visualization": "iVBORw0KGgoAAAANSUhEUgAA...",
-     "num_qubits": 3,
-     "num_gates": 8
+     "description": {
+       "summary": "Quantum Fourier Transform circuit on 3 qubits",
+       "expected_behavior": "Performs quantum Fourier transform, useful for period finding and Shor's algorithm",
+       "complexity": {"complexity_level": "medium", "estimated_runtime": "moderate"}
+     },
+     "ascii_visualization": "q0: ─H──●────●────────────M─\nq1: ────│──H──●──────────M─\nq2: ────│─────│──H───────M─",
+     "visualization_file": "/workspace/braket_visualizations/qft_circuit_20240115_154500.png"
    }
    ```
 
@@ -553,17 +747,24 @@ These examples show how to interact with the Amazon Braket MCP server through na
 **Expected Response:**
 > "Great choice for learning! The Quantum Fourier Transform (QFT) is fundamental to many quantum algorithms. Here's what this 3-qubit QFT does:
 > 
-> **Circuit Structure:**
-> - Hadamard gates create superposition
-> - Controlled phase gates add quantum interference
-> - SWAP gates reorder the qubits
+> **ASCII Circuit Structure:**
+> ```
+> q0: ─H──●────●────────────M─
+> q1: ────│──H──●──────────M─
+> q2: ────│─────│──H───────M─
+> ```
+> 
+> **How it works:**
+> - Hadamard gates (H) create superposition on each qubit
+> - Controlled phase gates (●) add quantum interference between qubits
+> - The pattern creates frequency domain transformations
 > 
 > **Applications:**
-> - **Shor's Algorithm**: For factoring large numbers
+> - **Shor's Algorithm**: For factoring large numbers (quantum cryptography)
 > - **Phase Estimation**: Finding eigenvalues of quantum operators
-> - **Period Finding**: Detecting periodic patterns in data
+> - **Period Finding**: Detecting periodic patterns in quantum data
 > 
-> The QFT transforms computational basis states into frequency domain representations, similar to classical Fourier transforms but leveraging quantum parallelism. When we run this, you'll see how quantum interference creates specific measurement patterns!"
+> The QFT transforms computational basis states into frequency domain representations, similar to classical Fourier transforms but leveraging quantum parallelism. The detailed circuit diagram has been saved to your workspace for study!"
 
 ### Example 6: Error Handling and Troubleshooting
 
@@ -605,12 +806,17 @@ These examples show how to interact with the Amazon Braket MCP server through na
 
 These examples demonstrate how the MCP server enables:
 
-- **Natural Language Interface**: Ask questions in plain English
+- **Natural Language Interface**: Ask questions in plain English about quantum circuits
 - **Contextual Responses**: Get explanations tailored to your quantum computing level
 - **Automatic Tool Orchestration**: Multiple tools work together seamlessly
 - **Educational Guidance**: Learn quantum concepts through hands-on examples
 - **Error Recovery**: Built-in troubleshooting and task management
-- **Visual Feedback**: Circuit diagrams and result visualizations included
+- **Visual Feedback**: 
+  - ASCII circuit diagrams that AI models can directly read
+  - Human-readable descriptions of quantum phenomena
+  - Automatic file saving with organized metadata
+  - Step-by-step gate explanations
+  - Intelligent results analysis with pattern detection
 
 ## 🎓 Learning Quantum Computing
 
