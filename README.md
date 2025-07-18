@@ -91,6 +91,131 @@ Your AWS credentials need these permissions:
 - `eu-west-2` (Europe - London)
 - `ap-southeast-1` (Asia Pacific - Singapore)
 
+## 🤖 Amazon Q CLI Integration
+
+This MCP server is designed to work seamlessly with Amazon Q CLI, providing quantum computing capabilities through natural language interactions. Here's how to configure and use it:
+
+### Prerequisites
+
+1. **Install Amazon Q CLI**:
+   ```bash
+   # Install Amazon Q CLI
+   npm install -g @aws/amazon-q-cli
+   
+   # Or using pip
+   pip install amazon-q-cli
+   ```
+
+2. **Install the Braket MCP Server**:
+   ```bash
+   pip install awslabs.amazon-braket-mcp-server
+   ```
+
+### Configuration
+
+#### Option 1: Using Q CLI Configuration File
+
+Create or update your Amazon Q CLI configuration file (`~/.q/config.json`):
+
+```json
+{
+  "mcpServers": {
+    "amazon-braket": {
+      "command": "python",
+      "args": ["-m", "awslabs.amazon_braket_mcp_server"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "BRAKET_WORKSPACE_DIR": "/path/to/your/quantum-workspace"
+      }
+    }
+  }
+}
+```
+
+#### Option 2: Using Environment Variables
+
+Set up your environment before starting Q CLI:
+
+```bash
+# AWS Configuration
+export AWS_REGION=us-east-1
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+
+# Braket-specific Configuration
+export BRAKET_DEFAULT_DEVICE_ARN=arn:aws:braket:::device/quantum-simulator/amazon/sv1
+export BRAKET_WORKSPACE_DIR=/path/to/your/quantum-workspace
+
+# Optional S3 Configuration for storing results
+export BRAKET_S3_BUCKET=your-quantum-results-bucket
+export BRAKET_S3_PREFIX=experiments/
+
+# Start Q CLI with MCP server
+q chat --mcp-server amazon-braket
+```
+
+#### Option 3: Inline Configuration
+
+Start Q CLI with inline MCP server configuration:
+
+```bash
+q chat --mcp-server "amazon-braket:python:-m:awslabs.amazon_braket_mcp_server"
+```
+
+
+### Configuration Tips
+
+1. **Workspace Directory**: Set `BRAKET_WORKSPACE_DIR` to organize your quantum experiments
+   ```bash
+   export BRAKET_WORKSPACE_DIR=~/quantum-experiments
+   ```
+
+2. **Default Device**: Configure your preferred simulator for quick testing
+   ```bash
+   export BRAKET_DEFAULT_DEVICE_ARN=arn:aws:braket:::device/quantum-simulator/amazon/sv1
+   ```
+
+3. **S3 Storage**: Use S3 for persistent result storage
+   ```bash
+   export BRAKET_S3_BUCKET=my-quantum-results
+   export BRAKET_S3_PREFIX=experiments/$(date +%Y-%m)/
+   ```
+
+4. **Cost Management**: Set up billing alerts for quantum hardware usage
+   ```bash
+   # Q CLI can help monitor costs
+   You: "How much have I spent on quantum computing this month?"
+   ```
+
+### Troubleshooting Q CLI Integration
+
+#### **MCP Server Not Found**
+```bash
+# Verify installation
+pip list | grep amazon-braket-mcp-server
+
+# Test server directly
+python -m awslabs.amazon_braket_mcp_server --version
+```
+
+#### **AWS Credentials Issues**
+```bash
+# Test AWS access
+aws sts get-caller-identity
+
+# Verify Braket permissions
+aws braket search-devices
+```
+
+#### **Connection Problems**
+```bash
+# Check Q CLI logs
+q chat --debug --mcp-server amazon-braket
+
+# Verify environment variables
+env | grep -E "(AWS|BRAKET)"
+```
+
 ## 🛠️ Available Tools
 
 ### Circuit Creation Tools
