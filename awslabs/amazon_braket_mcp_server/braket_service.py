@@ -72,7 +72,7 @@ class BraketService:
         'us-west-1', 
         'us-west-2',
         'eu-west-2',
-        'ap-southeast-1'
+        'eu-north-1'
     }
 
     def __init__(self, region_name: Optional[str] = None, workspace_dir: Optional[str] = None):
